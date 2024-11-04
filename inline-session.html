@@ -35,6 +35,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   <body>
     <header>
       <details open>
+
         <summary>Inline Session</summary>
         <p>
           This sample demonstrates use of an 'inline' XRSession to present
@@ -101,19 +102,37 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       let xrImmersiveRefSpace = null;
       let xrInlineRefSpace = null;
 
+      // Neu TJ
+      let xrButtonNeu = null;
+
       // WebGL scene globals.
       let gl = null;
       let renderer = null;
       let scene = new Scene();
       let solarSystem = new Gltf2Node({url: 'media/gltf/space/space.gltf'});
       scene.addNode(solarSystem);
-      scene.addNode(new SkyboxNode({url: 'media/textures/milky-way-4k.png'}));
+
+      // Neu TJ
+      let skybox = new SkyboxNode({url: 'media/textures/milky-way-4k.png'});
+      scene.addNode(skybox);
+      let arStartedNeu;
+
 
       function initXR() {
         xrButton = new WebXRButton({
           onRequestSession: onRequestSession,
           onEndSession: onEndSession
         });
+
+        // Neu TJ
+        xrButtonNeu = new WebXRButton({
+          onRequestSession: onRequestSessionNeu,
+          onEndSession: onEndSession,
+          textEnterXRTitle: "START AR",
+          textXRNotFoundTitle: "AR NOT FOUND",
+          textExitXRTitle: "EXIT  AR",
+        });
+        document.querySelector('header').appendChild(xrButtonNeu.domElement);
         document.querySelector('header').appendChild(xrButton.domElement);
 
         if (navigator.xr) {
@@ -127,8 +146,24 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
             inlineSession = session;
             onSessionStarted(session);
             updateFov();
+
+
           });
         }
+      }
+
+      arStartedNeu = false;
+
+      // Neu TJ
+      function onRequestSessionNeu() {
+        return navigator.xr.requestSession('immersive-ar').then((session) => {
+          xrButtonNeu.setSession(session);
+          // Set a flag on the session so we can differentiate it from the
+          // inline session.
+          session.isImmersive = true;
+          arStartedNeu = true;
+          onSessionStarted(session);
+        });
       }
 
       function onRequestSession() {
@@ -138,11 +173,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
           // inline session.
           session.isImmersive = true;
           onSessionStarted(session);
+          // Neu TJ
+          return navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+            xrButtonNeu.enabled = supported;
+        });
         });
       }
 
       function onSessionStarted(session) {
         session.addEventListener('end', onSessionEnded);
+
+        // Neu TJ
+        if (session.isImmersive && arStartedNeu) {
+          // When in 'immersive-ar' mode don't draw an opaque background because
+          // we want the real world to show through.
+          skybox.visible = false;
+        }
 
         if (!gl) {
           gl = createWebGLContext({
@@ -189,6 +235,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
           // which XRReferenceSpace is associated with which XRSession.
           if (session.isImmersive) {
             xrImmersiveRefSpace = refSpace;
+
+            // Neu TJ
+            xrImmersiveRefSpace.addEventListener('reset', (evt) => {
+              if (evt.transform) {
+                // AR experiences typically should stay grounded to the real world.
+                // If there's a known origin shift, compensate for it here.
+                xrImmersiveRefSpace = xrImmersiveRefSpace.getOffsetReferenceSpace(evt.transform);
+              }
+            });
           } else {
             xrInlineRefSpace = refSpace;
           }
